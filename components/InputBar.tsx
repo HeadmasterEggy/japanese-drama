@@ -150,128 +150,144 @@ export default function InputBar({
       className="border-t px-4 py-3"
       style={{ borderColor: "#3d2010", background: "#140a02" }}
     >
-      <div className="flex gap-2 items-end max-w-full">
-        {/* Mic button */}
-        {hasSpeech && (
-          <button
-            onClick={toggleListening}
-            disabled={disabled}
-            title={isListening ? "停止录音" : "语音输入（日语）"}
-            className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center text-base transition-all"
-            style={{
-              background: isListening ? "#7f1d1d" : disabled ? "#1e0e04" : "#2d1508",
-              border: `1px solid ${isListening ? "#ef4444" : disabled ? "#2d1508" : "#5c3010"}`,
-              color: isListening ? "#fca5a5" : disabled ? "#5c3010" : "#a07050",
-              cursor: disabled ? "not-allowed" : "pointer",
-              animation: isListening ? "micPulse 1s ease-in-out infinite" : "none",
-            }}
-          >
-            {isListening ? "⏹" : "🎤"}
-          </button>
-        )}
+      {/*
+        Below `sm` the textarea takes a row of its own. Sharing one row with the
+        four buttons left it 53px wide on a 375px viewport — narrow enough that
+        the placeholder wrapped to one character per line and the auto-resize ran
+        the box into its 120px height cap.
+      */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+        <div className="flex flex-1 min-w-0 gap-2 items-end">
+          {/* Mic button */}
+          {hasSpeech && (
+            <button
+              onClick={toggleListening}
+              disabled={disabled}
+              title={isListening ? "停止录音" : "语音输入（日语）"}
+              className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center text-base transition-all"
+              style={{
+                background: isListening ? "#7f1d1d" : disabled ? "#1e0e04" : "#2d1508",
+                border: `1px solid ${isListening ? "#ef4444" : disabled ? "#2d1508" : "#5c3010"}`,
+                color: isListening ? "#fca5a5" : disabled ? "#5c3010" : "#a07050",
+                cursor: disabled ? "not-allowed" : "pointer",
+                animation: isListening ? "micPulse 1s ease-in-out infinite" : "none",
+              }}
+            >
+              {isListening ? "⏹" : "🎤"}
+            </button>
+          )}
 
-        <div className="flex-1 relative">
-          <textarea
-            ref={textareaRef}
-            value={value}
-            onChange={(e) => {
-              setValue(e.target.value)
-              baseValueRef.current = e.target.value
-            }}
-            onKeyDown={handleKeyDown}
-            disabled={disabled}
-            rows={1}
-            placeholder={
-              isListening
-                ? "正在聆听… 请说日语"
-                : disabled
-                ? "等待回复中…"
-                : "用日语回复 · 或 @教练 开头提问 · Enter 发送"
-            }
-            className="w-full resize-none rounded-xl px-4 py-2.5 text-sm outline-none transition-colors"
-            style={{
-              background: disabled ? "#1e0e04" : "#2d1508",
-              color: displayInterim
-                ? "#a07050"
-                : isCoachQuestion
-                ? "#93c5fd"
-                : "#f0d5a0",
-              border: isListening
-                ? "1px solid #ef4444"
-                : isCoachQuestion
-                ? "1px solid #2563eb"
-                : "1px solid #5c3010",
-              caretColor: "#f59e0b",
-              minHeight: "42px",
-              maxHeight: "120px",
-            }}
-          />
-          {isCoachQuestion && !isListening && (
-            <span
-              className="absolute right-3 top-2.5 text-xs"
-              style={{ color: "#60a5fa" }}
-            >
-              问教练
-            </span>
-          )}
-          {isListening && (
-            <span
-              className="absolute right-3 top-2.5 text-xs"
-              style={{ color: "#f87171" }}
-            >
-              ● 录音中
-            </span>
-          )}
+          <div className="flex-1 min-w-0 relative">
+            {/*
+              16px below `sm`: iOS Safari zooms the page in when a focused field
+              is smaller than that, and never zooms back out on blur.
+            */}
+            <textarea
+              ref={textareaRef}
+              value={value}
+              onChange={(e) => {
+                setValue(e.target.value)
+                baseValueRef.current = e.target.value
+              }}
+              onKeyDown={handleKeyDown}
+              disabled={disabled}
+              rows={1}
+              placeholder={
+                isListening
+                  ? "正在聆听… 请说日语"
+                  : disabled
+                  ? "等待回复中…"
+                  : "用日语回复 · 或 @教练 开头提问"
+              }
+              className="w-full resize-none rounded-xl px-4 py-2.5 text-base sm:text-sm outline-none transition-colors"
+              style={{
+                background: disabled ? "#1e0e04" : "#2d1508",
+                color: displayInterim
+                  ? "#a07050"
+                  : isCoachQuestion
+                  ? "#93c5fd"
+                  : "#f0d5a0",
+                border: isListening
+                  ? "1px solid #ef4444"
+                  : isCoachQuestion
+                  ? "1px solid #2563eb"
+                  : "1px solid #5c3010",
+                caretColor: "#f59e0b",
+                minHeight: "42px",
+                maxHeight: "120px",
+              }}
+            />
+            {isCoachQuestion && !isListening && (
+              <span
+                className="absolute right-3 top-2.5 text-xs"
+                style={{ color: "#60a5fa" }}
+              >
+                问教练
+              </span>
+            )}
+            {isListening && (
+              <span
+                className="absolute right-3 top-2.5 text-xs"
+                style={{ color: "#f87171" }}
+              >
+                ● 录音中
+              </span>
+            )}
+          </div>
         </div>
 
-        <button
-          onClick={submit}
-          disabled={disabled || !value.trim()}
-          className="px-4 py-2.5 rounded-xl text-sm font-medium transition-all"
-          style={{
-            background:
-              disabled || !value.trim() ? "#3d2010" : "#f59e0b",
-            color: disabled || !value.trim() ? "#7a5c38" : "#1a0c02",
-            cursor: disabled || !value.trim() ? "not-allowed" : "pointer",
-          }}
-        >
-          发送
-        </button>
+        <div className="flex gap-2 items-end">
+          <button
+            onClick={submit}
+            disabled={disabled || !value.trim()}
+            className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-sm font-medium transition-all"
+            style={{
+              background:
+                disabled || !value.trim() ? "#3d2010" : "#f59e0b",
+              color: disabled || !value.trim() ? "#7a5c38" : "#1a0c02",
+              cursor: disabled || !value.trim() ? "not-allowed" : "pointer",
+            }}
+          >
+            发送
+          </button>
 
-        <button
-          onClick={onContinue}
-          disabled={disabled}
-          className="px-4 py-2.5 rounded-xl text-sm font-medium transition-all whitespace-nowrap"
-          style={{
-            background: disabled ? "#1a1020" : "#1e3050",
-            color: disabled ? "#374d6a" : "#93c5fd",
-            border: "1px solid",
-            borderColor: disabled ? "#1e2030" : "#2563eb",
-            cursor: disabled ? "not-allowed" : "pointer",
-          }}
-        >
-          让角色继续
-        </button>
+          <button
+            onClick={onContinue}
+            disabled={disabled}
+            className="px-4 py-2.5 rounded-xl text-sm font-medium transition-all whitespace-nowrap"
+            style={{
+              background: disabled ? "#1a1020" : "#1e3050",
+              color: disabled ? "#374d6a" : "#93c5fd",
+              border: "1px solid",
+              borderColor: disabled ? "#1e2030" : "#2563eb",
+              cursor: disabled ? "not-allowed" : "pointer",
+            }}
+          >
+            让角色继续
+          </button>
 
-        <button
-          onClick={onReset}
-          disabled={disabled}
-          className="px-3 py-2.5 rounded-xl text-sm transition-all"
-          style={{
-            background: "transparent",
-            color: disabled ? "#3d2010" : "#7a5c38",
-            border: "1px solid",
-            borderColor: disabled ? "#2d1508" : "#5c3010",
-            cursor: disabled ? "not-allowed" : "pointer",
-          }}
-          title="重置场景"
-        >
-          重置
-        </button>
+          <button
+            onClick={onReset}
+            disabled={disabled}
+            className="px-3 py-2.5 rounded-xl text-sm transition-all"
+            style={{
+              background: "transparent",
+              color: disabled ? "#3d2010" : "#7a5c38",
+              border: "1px solid",
+              borderColor: disabled ? "#2d1508" : "#5c3010",
+              cursor: disabled ? "not-allowed" : "pointer",
+            }}
+            title="重置场景"
+          >
+            重置
+          </button>
+        </div>
       </div>
 
       <p className="text-xs mt-2" style={{ color: "#3d2010" }}>
-        Enter 发送 · Shift+Enter 换行 · @教练 直接提问教练
+        {/* Keyboard-only hints are noise on a touch device. */}
+        <span className="hidden sm:inline">Enter 发送 · Shift+Enter 换行 · </span>
+        @教练 直接提问教练
         {hasSpeech && " · 🎤 语音输入日语"}
       </p>
 

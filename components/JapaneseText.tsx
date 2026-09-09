@@ -2,8 +2,10 @@
 
 import { useEffect, useMemo } from "react"
 import { parseJapaneseText } from "@/lib/japanese-text"
+import { toSpeechText } from "@/lib/tts"
 import { useAnnotations } from "@/components/AnnotationProvider"
 import { useHighlight } from "@/components/WordHighlight"
+import { useWordActions } from "@/components/WordActions"
 
 const LANGUAGE_NAMES: Record<string, string> = {
   de: "German",
@@ -43,6 +45,7 @@ export default function JapaneseText({
 }) {
   const { showKatakanaEn, glosses, requestGlosses } = useAnnotations()
   const { active, activateSegment, clear, enabled } = useHighlight()
+  const wordActions = useWordActions()
 
   useEffect(() => {
     if (isStreaming) return
@@ -53,6 +56,8 @@ export default function JapaneseText({
     () => parseJapaneseText(text, glosses),
     [text, glosses]
   )
+
+  const plain = useMemo(() => toSpeechText(text), [text])
 
   return (
     <>
@@ -71,6 +76,30 @@ export default function JapaneseText({
             }
           : undefined
 
+        // The same whole-word segments are the ones worth clicking. `plain` is
+        // the sentence without its furigana markup: it goes to the coach as the
+        // context for the question, and 「食べ物(たべもの)」 inside a prompt
+        // would just be noise for the model to explain.
+        const clickable = (word: string, reading?: string, gloss?: string) =>
+          wordActions.enabled
+            ? {
+                onClick: (event: React.MouseEvent<HTMLElement>) => {
+                  const rect = event.currentTarget.getBoundingClientRect()
+                  wordActions.open({
+                    word,
+                    reading,
+                    gloss,
+                    sentence: plain,
+                    anchor: {
+                      left: rect.left + rect.width / 2,
+                      top: rect.top,
+                      bottom: rect.bottom,
+                    },
+                  })
+                },
+              }
+            : undefined
+
         if (seg.type === "ruby") {
           // <rt> is emitted BEFORE the base on purpose. The ruby box is laid out
           // as an inline-block whose two lines are centred on each other (see
@@ -78,7 +107,12 @@ export default function JapaneseText({
           // come first in the DOM to sit on top. Native ruby-align could not be
           // relied on — it left readings visibly off-centre.
           return (
-            <span key={i} className={lit ? "jp-word is-lit" : "jp-word"} {...pairing}>
+            <span
+              key={i}
+              className={lit ? "jp-word is-lit" : "jp-word"}
+              {...pairing}
+              {...clickable(seg.kanji + seg.okurigana, seg.reading)}
+            >
               <ruby>
                 <rt style={rtColor ? { color: rtColor } : undefined}>
                   {seg.reading}
@@ -92,7 +126,12 @@ export default function JapaneseText({
 
         if (!showKatakanaEn) {
           return (
-            <span key={i} className={lit ? "jp-word is-lit" : "jp-word"} {...pairing}>
+            <span
+              key={i}
+              className={lit ? "jp-word is-lit" : "jp-word"}
+              {...pairing}
+              {...clickable(seg.term)}
+            >
               {seg.term}
             </span>
           )
@@ -104,7 +143,12 @@ export default function JapaneseText({
           // A pending lookup stays bare until its answer arrives.
           if (seg.status !== "checked") {
             return (
-              <span key={i} className={lit ? "jp-word is-lit" : "jp-word"} {...pairing}>
+              <span
+                key={i}
+                className={lit ? "jp-word is-lit" : "jp-word"}
+                {...pairing}
+                {...clickable(seg.term)}
+              >
                 {seg.term}
               </span>
             )
@@ -115,6 +159,7 @@ export default function JapaneseText({
               className={lit ? "kt-plain jp-word is-lit" : "kt-plain jp-word"}
               title={`${seg.term} — 非外来语（不是借词）`}
               {...pairing}
+              {...clickable(seg.term)}
             >
               {seg.term}
             </span>
@@ -129,6 +174,7 @@ export default function JapaneseText({
             className={lit ? "kt jp-word is-lit" : "kt jp-word"}
             title={`${seg.term} — ${origin}: ${seg.gloss}`}
             {...pairing}
+            {...clickable(seg.term, undefined, seg.gloss)}
           >
             <span className="kt-en">{seg.gloss}</span>
             <span className="kt-ja">

@@ -107,6 +107,22 @@ ruby .rb {
   padding-bottom: 1px;
 }
 
+/*
+ * Neither annotation layer is part of the sentence, so neither takes part in a
+ * selection: dragging across a line highlights the Japanese only, and the
+ * readings do not flash blue over the top of it.
+ *
+ * This is presentation, not the fix. What actually lands on the clipboard is
+ * rebuilt in lib/copy-annotations.ts, because browsers disagree about whether
+ * unselectable text is excluded from a copy, and because the block boxes these
+ * annotations are laid out with would still break the sentence across lines.
+ */
+ruby rt,
+.kt-en {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 /* The coach panel reads on a blue ground; teal-on-blue loses contrast there. */
 .coach-text .kt-en {
   color: #7dd3fc;

@@ -10,6 +10,7 @@ import {
   useState,
 } from "react"
 import { collectUnglossedTerms } from "@/lib/katakana"
+import { plainTextFromSelection } from "@/lib/copy-annotations"
 import { getFromStorage, setToStorage } from "@/lib/persistence"
 
 const SHOW_KEY = "jd:v1:katakana:show"
@@ -82,6 +83,29 @@ export default function AnnotationProvider({
       setToStorage(SHOW_KEY, !prev)
       return !prev
     })
+  }, [])
+
+  // Copying a line should give back the sentence, not the annotations layered
+  // over it — see lib/copy-annotations for what the browser did instead.
+  //
+  // Bound to the document rather than to a message bubble because a selection
+  // can span two bubbles, and a handler on one of them never sees that event.
+  // It stays inert unless the selection actually contains annotated Japanese,
+  // so a plain copy anywhere else in the app is untouched.
+  useEffect(() => {
+    function handleCopy(event: ClipboardEvent) {
+      const selection = window.getSelection()
+      if (!selection) return
+
+      const plain = plainTextFromSelection(selection)
+      if (plain === null) return
+
+      event.clipboardData?.setData("text/plain", plain)
+      event.preventDefault()
+    }
+
+    document.addEventListener("copy", handleCopy)
+    return () => document.removeEventListener("copy", handleCopy)
   }, [])
 
   const flush = useCallback(async () => {

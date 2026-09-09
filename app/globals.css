@@ -149,3 +149,39 @@ textarea::placeholder {
 .coach-text .kt-plain {
   border-bottom-color: rgba(120, 150, 190, 0.4);
 }
+
+/*
+ * Pairing a word with its romaji.
+ *
+ * Hovering either side lights both, so the romaji line stops being a run of
+ * letters the learner has to align by eye. See components/WordHighlight.
+ *
+ * Gated on a real pointer: a tap fires mouseenter on most touch browsers and
+ * nothing fires mouseleave, so on a phone the highlight would light once and
+ * stay lit. The handlers still run there — they just paint nothing until
+ * there is a tap-to-pin interaction to hang this on.
+ */
+.jp-word,
+.rj-word {
+  border-radius: 3px;
+}
+
+@media (hover: hover) {
+  .jp-word,
+  .rj-word {
+    transition: background-color 120ms ease, box-shadow 120ms ease;
+  }
+
+  .jp-word.is-lit,
+  .rj-word.is-lit {
+    background: rgba(245, 158, 11, 0.16);
+    box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.35);
+  }
+
+  /* The romaji sits on the same amber as the bubble text; underline it too so
+     the pairing survives for anyone who cannot separate the two tints. */
+  .rj-word.is-lit {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+}

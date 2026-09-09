@@ -4,6 +4,8 @@ import { useEffect, useRef, useState, useCallback } from "react"
 import type { Message } from "@/lib/types"
 import { convertToRomaji } from "@/lib/romaji"
 import JapaneseText from "@/components/JapaneseText"
+import RomajiLine from "@/components/RomajiLine"
+import { HighlightScope } from "@/components/WordHighlight"
 import { speakLine, cancelSpeech, toSpeechText } from "@/lib/tts"
 import { useVoices } from "@/components/VoiceProvider"
 import VoicePicker from "@/components/VoicePicker"
@@ -112,6 +114,19 @@ function Bubble({
   onPlay: (id: string, text: string) => void; onStop: () => void
 }) {
   const isUser = msg.role === "user"
+
+  const lines = (
+    <>
+      <div className="ruby-text"><JapaneseText text={msg.content} /></div>
+      {showRomaji && (
+        <div className="mt-1.5 text-xs italic leading-snug border-t pt-1"
+          style={{ color: isUser ? "#f0c080" : "#a07850", borderColor: isUser ? "#9c6b24" : "#3d2010" }}>
+          <RomajiLine text={msg.content} />
+        </div>
+      )}
+    </>
+  )
+
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
       <div
@@ -126,13 +141,10 @@ function Bubble({
             {characterName}
           </div>
         )}
-        <div className="ruby-text"><JapaneseText text={msg.content} /></div>
-        {showRomaji && (
-          <div className="mt-1.5 text-xs italic leading-snug border-t pt-1"
-            style={{ color: isUser ? "#f0c080" : "#a07850", borderColor: isUser ? "#9c6b24" : "#3d2010" }}>
-            {convertToRomaji(msg.content)}
-          </div>
-        )}
+        {/* Only worth pairing when both lines are on screen. */}
+        {showRomaji
+          ? <HighlightScope text={msg.content}>{lines}</HighlightScope>
+          : lines}
         <SpeakButton id={msg.id} text={msg.content} playingId={playingId} onPlay={onPlay} onStop={onStop} />
       </div>
     </div>
@@ -318,6 +330,11 @@ export default function DialogPanel({
               {showRomaji && (
                 <div className="mt-1.5 text-xs italic leading-snug border-t pt-1"
                   style={{ color: "#a07850", borderColor: "#3d2010" }}>
+                  {/*
+                    Not paired while streaming: the words reflow on every chunk,
+                    so a hover target would slide out from under the cursor. The
+                    finished message a moment later is the one worth exploring.
+                  */}
                   {convertToRomaji(streamingText)}
                 </div>
               )}

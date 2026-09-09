@@ -1,6 +1,11 @@
 import { test, describe } from "node:test"
 import assert from "node:assert/strict"
-import { convertToRomaji } from "@/lib/romaji"
+import {
+  convertToRomaji,
+  joinRomajiTokens,
+  tokenizeRomaji,
+} from "@/lib/romaji"
+import { parseJapaneseText } from "@/lib/japanese-text"
 
 describe("kanji conversion", () => {
   test("reads kanji from the furigana already in the text", () => {
@@ -153,5 +158,97 @@ describe("full sentences", () => {
   test("punctuation attaches to the preceding word", () => {
     assert.ok(!convertToRomaji("はい、そうです。").includes(" ,"))
     assert.ok(!convertToRomaji("はい、そうです。").includes(" ."))
+  })
+})
+
+describe("token alignment", () => {
+  /** The romaji a token carries, paired with the Japanese it was built from. */
+  function aligned(text: string) {
+    const segments = parseJapaneseText(text)
+    return tokenizeRomaji(text).map((t) => [
+      t.romaji,
+      t.segments
+        .map((i) => {
+          const seg = segments[i]
+          return seg.type === "ruby"
+            ? seg.kanji + seg.okurigana
+            : seg.type === "katakana"
+              ? seg.term
+              : seg.text
+        })
+        .join("+"),
+    ])
+  }
+
+  test("joining the tokens reproduces the string form", () => {
+    // The two exports must not drift: convertToRomaji is built on these tokens,
+    // and a renderer that lays them out itself has to arrive at the same line.
+    for (const line of [
+      "重心(じゅうしん)を前(まえ)の足(あし)にかけて、ゆっくり曲(ま)がってください。",
+      "ゲレンデでスノーボードのレッスンを受(う)けます。",
+      "食(た)べ物(もの)はカレーです。",
+      "今日(きょう)はいい天気(てんき)です。",
+      "何(なに)をお探(さが)しですか。",
+    ]) {
+      assert.equal(joinRomajiTokens(tokenizeRomaji(line)), convertToRomaji(line))
+    }
+  })
+
+  test("every token records at least one source segment", () => {
+    // A token with no origin cannot be highlighted, and silently losing the
+    // link is exactly the bug that made the romaji line inert before.
+    const tokens = tokenizeRomaji(
+      "重心(じゅうしん)を前(まえ)の足(あし)にかけて、ゆっくり曲(ま)がってください。"
+    )
+    for (const t of tokens) {
+      assert.ok(t.segments.length > 0, `token "${t.romaji}" has no source`)
+    }
+  })
+
+  test("segment indices address the caller's own parse of the same text", () => {
+    // tokenizeRomaji rewrites text segments in place while absorbing okurigana.
+    // Indices still have to line up with an untouched parseJapaneseText array,
+    // or every highlight points at the wrong word.
+    const text = "重心(じゅうしん)を前(まえ)の足(あし)にかけて、ゆっくり曲(ま)がってください。"
+    const segments = parseJapaneseText(text)
+    for (const t of tokenizeRomaji(text)) {
+      for (const i of t.segments) {
+        assert.ok(segments[i] !== undefined, `token "${t.romaji}" points past the end`)
+      }
+    }
+  })
+
+  test("a kanji word points at the ruby it was read from", () => {
+    assert.deepEqual(aligned("重心(じゅうしん)を"), [
+      ["juushin", "重心"],
+      ["o", "を"],
+    ])
+  })
+
+  test("a verb keeps its absorbed okurigana on the ruby segment", () => {
+    // 曲(ま)がって is one ruby plus okurigana pulled out of the next text
+    // segment; the whole word must point back at that ruby, not at the kana.
+    assert.deepEqual(aligned("曲(ま)がって"), [["magatte", "曲"]])
+  })
+
+  test("a word annotated in two pieces points at both rubies", () => {
+    const [[romaji, source]] = aligned("食(た)べ物(もの)")
+    assert.equal(romaji, "tabemono")
+    assert.equal(source, "食+物")
+  })
+
+  test("a katakana loanword points at its own segment", () => {
+    assert.deepEqual(aligned("スノーボードは"), [
+      ["sunooboodo", "スノーボード"],
+      ["wa", "は"],
+    ])
+  })
+
+  test("an honorific prefix is carried onto the word it belongs to", () => {
+    // お lives in a text segment and 探 in the next ruby; osagashi is one word
+    // and has to point at both.
+    const [[romaji, source]] = aligned("お探(さが)しです")
+    assert.equal(romaji, "osagashi")
+    assert.equal(source, "お+探")
   })
 })

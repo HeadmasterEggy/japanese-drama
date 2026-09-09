@@ -408,20 +408,55 @@ function tokenizePlain(
 }
 
 /**
- * Transliterate Japanese text to spaced romaji, using the furigana already
- * present in the text to read its kanji.
+ * One romaji word, and where in the sentence it came from.
+ *
+ * `segments` indexes the array `parseJapaneseText(text)` returns for the same
+ * text, so a renderer that walks those segments can light up the Japanese a
+ * given romaji word transliterates, and the other way round.
+ *
+ * The relation is many-to-many in both directions, which is why this is a list
+ * rather than a single index:
+ *
+ *   食(た)べ物(もの)  two ruby segments  -> one token   "tabemono"
+ *   はいい？           one text segment   -> three tokens "wa" "ii" "?"
+ *
+ * A token built from a text segment still records that segment, but nothing
+ * renders a highlight for it yet: a text segment covers a whole run of kana and
+ * highlighting it would light up far more than the hovered word. Resolving that
+ * needs character offsets within the segment, not just its index.
  */
-export function convertToRomaji(text: string): string {
-  const tokens: string[] = []
+export type RomajiToken = {
+  romaji: string
+  segments: number[]
+}
+
+/** True for a token that is only punctuation, which takes no leading space. */
+const isPunctuationToken = (romaji: string) => /^[.,!?]+$/.test(romaji)
+
+/**
+ * Transliterate Japanese text to romaji words, each tagged with the segments it
+ * came from.
+ *
+ * Note that the okurigana absorption below rewrites `segments[s + 1]` in place,
+ * so this array diverges from what `parseJapaneseText` returns for the same
+ * text. Only the *content* of a text segment changes, never the length or the
+ * order, so the indices recorded here still address the caller's own copy.
+ */
+export function tokenizeRomaji(text: string): RomajiToken[] {
+  const tokens: RomajiToken[] = []
   const segments = parseJapaneseText(text)
 
   // Holds kana that must join the *next* word: an honorific prefix, or the
   // first half of a word the model annotated in two pieces (食(た)べ物(もの)).
+  // `carrySources` follows it so the merged word keeps both origins.
   let carry = ""
+  let carrySources: number[] = []
   let prevWasContent = false
 
-  const emit = (word: string, particle = false) => {
-    for (const r of tokenToRomaji(word, particle)) if (r) tokens.push(r)
+  const emit = (word: string, sources: number[], particle = false) => {
+    for (const r of tokenToRomaji(word, particle)) {
+      if (r) tokens.push({ romaji: r, segments: sources })
+    }
   }
 
   for (let s = 0; s < segments.length; s++) {
@@ -429,7 +464,9 @@ export function convertToRomaji(text: string): string {
 
     if (seg.type === "ruby") {
       let word = carry + seg.reading + seg.okurigana
+      let sources = [...carrySources, s]
       carry = ""
+      carrySources = []
 
       const next = segments[s + 1]
       if (!seg.okurigana && next?.type === "text") {
@@ -438,6 +475,8 @@ export function convertToRomaji(text: string): string {
         if (take > 0) {
           word += run.slice(0, take)
           segments[s + 1] = { type: "text", text: next.text.slice(take) }
+          // The absorbed okurigana is rendered as part of the ruby's wrapper,
+          // so the reading's own segment already covers it — nothing to add.
         }
       }
 
@@ -449,8 +488,9 @@ export function convertToRomaji(text: string): string {
         (after?.type === "text" && after.text === "" && segments[s + 2]?.type === "ruby")
       if (joinsNextRuby) {
         carry = word
+        carrySources = sources
       } else {
-        emit(word)
+        emit(word, sources)
       }
 
       prevWasContent = true
@@ -458,8 +498,9 @@ export function convertToRomaji(text: string): string {
     }
 
     if (seg.type === "katakana") {
-      emit(carry + seg.term)
+      emit(carry + seg.term, [...carrySources, s])
       carry = ""
+      carrySources = []
       prevWasContent = true
       continue
     }
@@ -467,20 +508,41 @@ export function convertToRomaji(text: string): string {
     if (!seg.text) continue
 
     const { tokens: plain, trailingPrefix } = tokenizePlain(seg.text, prevWasContent)
-    if (carry && plain.length === 0 && !trailingPrefix) {
-      // Nothing here to attach to; do not lose the carried kana.
-      emit(carry)
+    if (carry) {
+      // Nothing here for the carried kana to attach to; do not lose them.
+      emit(carry, carrySources)
       carry = ""
-    } else if (carry) {
-      emit(carry)
-      carry = ""
+      carrySources = []
     }
-    tokens.push(...plain)
+    for (const romaji of plain) tokens.push({ romaji, segments: [s] })
     carry = trailingPrefix
+    carrySources = trailingPrefix ? [s] : []
     prevWasContent = plain.length > 0 && !trailingPrefix
   }
 
-  if (carry) emit(carry)
+  if (carry) emit(carry, carrySources)
 
-  return tokens.filter(Boolean).join(" ").replace(/\s+([.,!?])/g, "$1").trim()
+  return tokens.filter((t) => t.romaji)
 }
+
+/**
+ * Transliterate Japanese text to spaced romaji, using the furigana already
+ * present in the text to read its kanji.
+ */
+export function convertToRomaji(text: string): string {
+  return tokenizeRomaji(text)
+    .map((t) => t.romaji)
+    .join(" ")
+    .replace(/\s+([.,!?])/g, "$1")
+    .trim()
+}
+
+/** The spaced form of an already-tokenised line, spacing punctuation as above. */
+export function joinRomajiTokens(tokens: RomajiToken[]): string {
+  return tokens
+    .map((t, i) => (i === 0 || isPunctuationToken(t.romaji) ? t.romaji : ` ${t.romaji}`))
+    .join("")
+    .trim()
+}
+
+export { isPunctuationToken }

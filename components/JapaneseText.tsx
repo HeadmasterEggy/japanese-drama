@@ -3,6 +3,7 @@
 import { useEffect, useMemo } from "react"
 import { parseJapaneseText } from "@/lib/japanese-text"
 import { useAnnotations } from "@/components/AnnotationProvider"
+import { useHighlight } from "@/components/WordHighlight"
 
 const LANGUAGE_NAMES: Record<string, string> = {
   de: "German",
@@ -41,6 +42,7 @@ export default function JapaneseText({
   isStreaming?: boolean
 }) {
   const { showKatakanaEn, glosses, requestGlosses } = useAnnotations()
+  const { active, activateSegment, clear, enabled } = useHighlight()
 
   useEffect(() => {
     if (isStreaming) return
@@ -57,6 +59,18 @@ export default function JapaneseText({
       {segments.map((seg, i) => {
         if (seg.type === "text") return <span key={i}>{seg.text}</span>
 
+        // Whole-word segments pair with a romaji word, so they are hoverable.
+        // A text segment is a whole run of kana covering several words at once;
+        // lighting it would light far more than the word under the cursor, so
+        // it stays inert until tokens carry offsets within a segment.
+        const lit = active !== null && active.includes(i)
+        const pairing = enabled
+          ? {
+              onMouseEnter: () => activateSegment(i),
+              onMouseLeave: clear,
+            }
+          : undefined
+
         if (seg.type === "ruby") {
           // <rt> is emitted BEFORE the base on purpose. The ruby box is laid out
           // as an inline-block whose two lines are centred on each other (see
@@ -64,7 +78,7 @@ export default function JapaneseText({
           // come first in the DOM to sit on top. Native ruby-align could not be
           // relied on — it left readings visibly off-centre.
           return (
-            <span key={i}>
+            <span key={i} className={lit ? "jp-word is-lit" : "jp-word"} {...pairing}>
               <ruby>
                 <rt style={rtColor ? { color: rtColor } : undefined}>
                   {seg.reading}
@@ -76,18 +90,31 @@ export default function JapaneseText({
           )
         }
 
-        if (!showKatakanaEn) return <span key={i}>{seg.term}</span>
+        if (!showKatakanaEn) {
+          return (
+            <span key={i} className={lit ? "jp-word is-lit" : "jp-word"} {...pairing}>
+              {seg.term}
+            </span>
+          )
+        }
 
         if (!seg.gloss) {
           // Checked and confirmed not a loanword — mark it, so "no English
           // here" reads as an answer rather than as the feature failing.
           // A pending lookup stays bare until its answer arrives.
-          if (seg.status !== "checked") return <span key={i}>{seg.term}</span>
+          if (seg.status !== "checked") {
+            return (
+              <span key={i} className={lit ? "jp-word is-lit" : "jp-word"} {...pairing}>
+                {seg.term}
+              </span>
+            )
+          }
           return (
             <span
               key={i}
-              className="kt-plain"
+              className={lit ? "kt-plain jp-word is-lit" : "kt-plain jp-word"}
               title={`${seg.term} — 非外来语（不是借词）`}
+              {...pairing}
             >
               {seg.term}
             </span>
@@ -97,7 +124,12 @@ export default function JapaneseText({
         const origin = seg.src ? LANGUAGE_NAMES[seg.src] ?? seg.src : "English"
 
         return (
-          <span key={i} className="kt" title={`${seg.term} — ${origin}: ${seg.gloss}`}>
+          <span
+            key={i}
+            className={lit ? "kt jp-word is-lit" : "kt jp-word"}
+            title={`${seg.term} — ${origin}: ${seg.gloss}`}
+            {...pairing}
+          >
             <span className="kt-en">{seg.gloss}</span>
             <span className="kt-ja">
               <span className="kt-mark">{seg.term}</span>

@@ -14,6 +14,7 @@ import { getFromStorage, setToStorage } from "@/lib/persistence"
 
 const SHOW_KEY = "jd:v1:katakana:show"
 const CACHE_KEY = "jd:v1:katakana:glosses"
+const FURIGANA_KEY = "jd:v1:furigana:mode"
 
 /** Terms resolved by the LLM are cached forever; trim oldest first past this. */
 const MAX_CACHED_GLOSSES = 2000
@@ -22,10 +23,29 @@ const BATCH_DELAY_MS = 400
 /** One request stays small so a slow model never blocks the whole transcript. */
 const MAX_BATCH_SIZE = 12
 
+/**
+ * How furigana readings render.
+ *
+ *   always — every reading on screen, the only behaviour there used to be
+ *   hover  — readings hidden until you hover the word, so a learner can check
+ *            whether they actually knew it instead of reading the answer
+ *   off    — no readings, and the space they reserved given back to the text
+ *
+ * `hover` is the reason this is three states rather than a checkbox: it is the
+ * one that turns reading a line into a test.
+ */
+export type FuriganaMode = "always" | "hover" | "off"
+
+const FURIGANA_MODES: FuriganaMode[] = ["always", "hover", "off"]
+
 type AnnotationContextValue = {
   /** Whether English source words render above katakana. */
   showKatakanaEn: boolean
   toggleKatakanaEn: () => void
+  /** How furigana readings render. */
+  furigana: FuriganaMode
+  /** Advance to the next mode: always → hover → off → always. */
+  cycleFurigana: () => void
   /** term → source word, or null for "looked up, not a loanword". */
   glosses: Map<string, string | null>
   /** Queue any unglossed katakana in `text` for lookup. Safe to call every render. */
@@ -35,6 +55,8 @@ type AnnotationContextValue = {
 const AnnotationContext = createContext<AnnotationContextValue>({
   showKatakanaEn: true,
   toggleKatakanaEn: () => {},
+  furigana: "always",
+  cycleFurigana: () => {},
   glosses: new Map(),
   requestGlosses: () => {},
 })
@@ -49,6 +71,7 @@ export default function AnnotationProvider({
   children: React.ReactNode
 }) {
   const [showKatakanaEn, setShowKatakanaEn] = useState(true)
+  const [furigana, setFurigana] = useState<FuriganaMode>("always")
   const [glosses, setGlosses] = useState<Map<string, string | null>>(new Map())
 
   // Terms waiting for the next batch, and terms already in flight. Refs rather
@@ -73,14 +96,44 @@ export default function AnnotationProvider({
     const savedShow = getFromStorage<boolean>(SHOW_KEY)
     if (typeof savedShow === "boolean") setShowKatakanaEn(savedShow)
 
+    const savedMode = getFromStorage<FuriganaMode>(FURIGANA_KEY)
+    if (savedMode && FURIGANA_MODES.includes(savedMode)) setFurigana(savedMode)
+
     const savedCache = getFromStorage<Record<string, string | null>>(CACHE_KEY)
     if (savedCache) commitGlosses(new Map(Object.entries(savedCache)))
   }, [commitGlosses])
+
+  /*
+   * Both annotation layers are published to the root element so CSS alone can
+   * hide, reveal and re-space them.
+   *
+   * Doing it in the stylesheet rather than in JapaneseText is what makes the
+   * `hover` mode possible at all: revealing a reading has to happen on
+   * `ruby:hover`, with no state change and no re-render, or the text would
+   * repaint under the cursor every time it moved between words.
+   *
+   * The katakana flag rides along because the line spacing depends on both —
+   * see .ruby-text in globals.css.
+   */
+  useEffect(() => {
+    const root = document.documentElement
+    root.dataset.furigana = furigana
+    root.dataset.katakanaEn = showKatakanaEn ? "on" : "off"
+  }, [furigana, showKatakanaEn])
 
   const toggleKatakanaEn = useCallback(() => {
     setShowKatakanaEn((prev) => {
       setToStorage(SHOW_KEY, !prev)
       return !prev
+    })
+  }, [])
+
+  const cycleFurigana = useCallback(() => {
+    setFurigana((prev) => {
+      const next =
+        FURIGANA_MODES[(FURIGANA_MODES.indexOf(prev) + 1) % FURIGANA_MODES.length]
+      setToStorage(FURIGANA_KEY, next)
+      return next
     })
   }, [])
 
@@ -164,8 +217,22 @@ export default function AnnotationProvider({
   }, [])
 
   const value = useMemo(
-    () => ({ showKatakanaEn, toggleKatakanaEn, glosses, requestGlosses }),
-    [showKatakanaEn, toggleKatakanaEn, glosses, requestGlosses]
+    () => ({
+      showKatakanaEn,
+      toggleKatakanaEn,
+      furigana,
+      cycleFurigana,
+      glosses,
+      requestGlosses,
+    }),
+    [
+      showKatakanaEn,
+      toggleKatakanaEn,
+      furigana,
+      cycleFurigana,
+      glosses,
+      requestGlosses,
+    ]
   )
 
   return (

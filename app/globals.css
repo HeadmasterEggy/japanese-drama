@@ -64,6 +64,57 @@ ruby .rb {
 }
 
 /*
+ * Furigana modes — see FuriganaMode in components/AnnotationProvider.
+ *
+ * Driven entirely from a data attribute on the root element rather than from
+ * React state, because `hover` has to reveal a reading on :hover alone. Routing
+ * that through a re-render would repaint the line every time the cursor crossed
+ * a word.
+ */
+
+/*
+ * hover — the reading is there, just invisible. opacity rather than visibility
+ * so it can fade, and rather than display:none so the box keeps the width and
+ * height it reserved: revealing a reading must never move the text under the
+ * cursor that is revealing it.
+ */
+[data-furigana="hover"] ruby rt {
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+@media (hover: hover) {
+  [data-furigana="hover"] ruby:hover rt {
+    opacity: 1;
+  }
+}
+
+/*
+ * Touch has no hover, so `hover` mode would hide every reading with no way to
+ * get one back. Falling back to always-on keeps the readings reachable; the
+ * mode becomes meaningful again once there is a tap-to-reveal interaction.
+ */
+@media (hover: none) {
+  [data-furigana="hover"] ruby rt {
+    opacity: 1;
+  }
+}
+
+/* off — give the reserved space back rather than just blanking it. */
+[data-furigana="off"] ruby rt {
+  display: none;
+}
+
+/*
+ * The 2.4 line-height exists to clear an annotation stacked above the text, and
+ * both layers need about 2em of it. Tightened only when neither layer is
+ * showing, or a katakana gloss would collide with the line above.
+ */
+[data-furigana="off"][data-katakana-en="off"] .ruby-text {
+  line-height: 1.75;
+}
+
+/*
  * Katakana loanword annotation — English source word above the katakana.
  *
  * Not <ruby>: ruby text does not reserve layout width, so a long source word

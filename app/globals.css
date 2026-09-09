@@ -185,3 +185,12 @@ textarea::placeholder {
     text-underline-offset: 2px;
   }
 }
+
+/*
+ * Where a word can be clicked, say so. Scoped to the subtree the provider wraps
+ * (see components/WordActions) rather than applied to .jp-word everywhere, so a
+ * word outside a scene — with nothing to open — does not claim to be a target.
+ */
+[data-word-actions="on"] .jp-word {
+  cursor: pointer;
+}

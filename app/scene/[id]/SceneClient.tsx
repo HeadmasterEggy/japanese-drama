@@ -1,8 +1,9 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import KatakanaToggle from "@/components/KatakanaToggle"
+import { WordActionsProvider } from "@/components/WordActions"
 import Image from "next/image"
 import DialogPanel from "@/components/DialogPanel"
 import CoachPanel from "@/components/CoachPanel"
@@ -231,6 +232,20 @@ export default function SceneClient({ scenario }: { scenario: Scenario }) {
     }
   }
 
+  /*
+   * Clicking a word and asking about it is the same path as typing
+   * `@教练 …`, so it reuses it rather than adding a second question route —
+   * including the tab switch, since on mobile the answer arrives in a panel
+   * that is not on screen.
+   */
+  const askCoachAboutWord = useCallback((question: string) => {
+    if (isDisabled) return
+    setActiveTab("coach")
+    void runCoach("", dialogMessages, true, question)
+  // runCoach closes over setters only; dialogMessages is the live context.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dialogMessages, isDisabled])
+
   function handleReset() {
     const starter = [{ id: makeId(), role: "character" as const, content: scenario.opening, timestamp: new Date() }]
     setDialogMessages(starter)
@@ -321,6 +336,7 @@ export default function SceneClient({ scenario }: { scenario: Scenario }) {
       )}
 
       {/* Two-panel body */}
+      <WordActionsProvider askCoach={askCoachAboutWord} coachBusy={isDisabled}>
       <div className="flex flex-1 overflow-hidden">
         <div
           className={`${activeTab !== "dialog" ? "hidden md:flex md:flex-1" : "flex-1"} border-r overflow-hidden`}
@@ -342,6 +358,7 @@ export default function SceneClient({ scenario }: { scenario: Scenario }) {
           />
         </div>
       </div>
+      </WordActionsProvider>
 
       {/* Input bar */}
       <div className="shrink-0">

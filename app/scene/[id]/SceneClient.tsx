@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import KatakanaToggle from "@/components/KatakanaToggle"
+import FuriganaToggle from "@/components/FuriganaToggle"
 import Image from "next/image"
 import DialogPanel from "@/components/DialogPanel"
 import CoachPanel from "@/components/CoachPanel"
@@ -272,7 +273,7 @@ export default function SceneClient({ scenario }: { scenario: Scenario }) {
         <Image src="/logo.png" alt="logo" width={30} height={30} className="rounded-lg shrink-0" />
         <span className="text-lg">{scenario.emoji}</span>
         <span className="font-bold" style={{ color: "#f59e0b", fontFamily: "serif" }}>{scenario.titleJa}</span>
-        <span className="text-sm hidden sm:inline" style={{ color: "#7a5c38" }}>{scenario.title}</span>
+        <span className="text-sm hidden md:inline" style={{ color: "#7a5c38" }}>{scenario.title}</span>
         <div className="ml-auto flex items-center gap-2">
           <button onClick={() => setShowRomaji(v => !v)}
             className="text-xs px-3 py-1 rounded-lg transition-all"
@@ -284,6 +285,7 @@ export default function SceneClient({ scenario }: { scenario: Scenario }) {
             }}>
             ローマ字
           </button>
+          <FuriganaToggle />
           <KatakanaToggle />
           <button
             onClick={handleReset}
@@ -297,7 +299,12 @@ export default function SceneClient({ scenario }: { scenario: Scenario }) {
           >
             清空历史
           </button>
-          <span className="text-xs px-2 py-0.5 rounded hidden sm:inline"
+          {/*
+            Held back to lg. This row now carries a fourth toggle, and the
+            badge is both the widest item in it and the most redundant — the
+            character name is repeated in the dialog panel header just below.
+          */}
+          <span className="text-xs px-2 py-0.5 rounded hidden lg:inline"
             style={{ background: "#261508", color: "#a07850", border: "1px solid #5c3010" }}>
             {scenario.difficulty} · {scenario.character.name}
           </span>

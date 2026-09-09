@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react"
 import Link from "next/link"
 import KatakanaToggle from "@/components/KatakanaToggle"
+import FuriganaToggle from "@/components/FuriganaToggle"
 import { PODCAST_TOPICS, TOPIC_CATEGORY_LABEL } from "@/lib/podcast-topics"
 import { buildRotation, planSegment, pickSituation, shuffle, SEGMENTS_PER_TOPIC, type Situation } from "@/lib/podcast-plan"
 import {
@@ -571,6 +572,7 @@ export default function PodcastPlayer() {
         </div>
 
         <div className="flex items-center gap-2">
+        <FuriganaToggle />
         <KatakanaToggle />
         {/* Copy transcript */}
         <button
